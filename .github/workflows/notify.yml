@@ -1,0 +1,44 @@
+name: Напоминания Life OS
+
+on:
+  schedule:
+    # время в UTC; Москва = UTC+3
+    - cron: '30 4 * * 1-6'          # 07:30 МСК — план на день
+    - cron: '*/15 12-19 * * *'      # 15:00–22:45 МСК каждые 15 минут — «пора заниматься»
+    - cron: '30 18 * * *'           # 21:30 МСК — отметить день
+    - cron: '0 17 * * 0'            # 20:00 МСК воскресенье — неделя впереди
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Какое сообщение отправить
+        type: choice
+        options: [now, morning, evening, week]
+        default: morning
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Выбрать режим
+        id: pick
+        run: |
+          case "${{ github.event.schedule }}" in
+            "30 4 * * 1-6")      echo "mode=morning" >> "$GITHUB_OUTPUT" ;;
+            "*/15 12-19 * * *")  echo "mode=now"     >> "$GITHUB_OUTPUT" ;;
+            "30 18 * * *")       echo "mode=evening" >> "$GITHUB_OUTPUT" ;;
+            "0 17 * * 0")        echo "mode=week"    >> "$GITHUB_OUTPUT" ;;
+            *)                   echo "mode=${{ inputs.mode || 'now' }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Отправить
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: npx -y tsx@4.19.2 scripts/notify.ts "${{ steps.pick.outputs.mode }}"
